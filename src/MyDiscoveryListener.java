@@ -1,5 +1,7 @@
 
 
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import javax.bluetooth.DataElement;
@@ -21,6 +23,10 @@ public class MyDiscoveryListener implements DiscoveryListener{
     static Object lock=new Object();
     
     public ArrayList<RemoteDevice> devices;
+    
+    public ArrayList<String> URLs = new ArrayList<String>();
+    
+    static OutputStream clientSession;
     
     public MyDiscoveryListener() {
         devices = new ArrayList<RemoteDevice>();
@@ -57,16 +63,17 @@ public class MyDiscoveryListener implements DiscoveryListener{
     @Override
     public void servicesDiscovered(int transID, ServiceRecord[] servRecord) {
         for (int i = 0; i < servRecord.length; i++) {
-            String url = servRecord[i].getConnectionURL(ServiceRecord.NOAUTHENTICATE_NOENCRYPT, false);
+            String url = servRecord[i].getConnectionURL(ServiceRecord.AUTHENTICATE_NOENCRYPT, false);
             if (url == null) {
                 continue;
             }
+            URLs.add(url);
             DataElement serviceName = servRecord[i].getAttributeValue(0x0100);
             if (serviceName != null) {
                 System.out.println("service " + serviceName.getValue() + " found " + url);
                 
-                if(serviceName.getValue().equals("OBEX Object Push")){
-                    sendMessageToDevice(url);                
+                if(serviceName.getValue().equals("SPP")){
+                    //sendMessageToDevice(url);                
                 }
             } else {
                 System.out.println("service found " + url);
@@ -76,25 +83,36 @@ public class MyDiscoveryListener implements DiscoveryListener{
         }
     }
     
-    private static void connectToDevice(String serverURL){
+    public static void connectToDevice(String serverURL, RemoteDevice currentDevice){
     	try{
+    		
+    		
+    		
     		System.out.println("Connecting to " + serverURL);
 
-    		ClientSession clientSession = (ClientSession) Connector.open(serverURL);
+    		clientSession = (OutputStream) Connector.openOutputStream(serverURL);
 
-
-    		HeaderSet hsConnectReply = clientSession.connect(null);
-    		if (hsConnectReply.getResponseCode() != ResponseCodes.OBEX_HTTP_OK) {
-    			System.out.println("Failed to connect");
-    			return;
-    		}
+            System.out.println("Connected " + serverURL);
+    		
     	} catch(Exception e){
-
+    		e.printStackTrace();
     	}
     }
     
     
-    private static void sendMessageToDevice(String serverURL){
+    public static void send(){
+    	
+    	try {
+			clientSession.write((byte)1);
+			System.out.println("Success!");
+		} catch (IOException e) {
+			System.out.println("Fail...");
+			e.printStackTrace();
+		}
+    	
+    }
+    
+    static void sendMessageToDevice(String serverURL){
         try{
             System.out.println("Connecting to " + serverURL);
     
@@ -130,61 +148,4 @@ public class MyDiscoveryListener implements DiscoveryListener{
             e.printStackTrace();
         }
     }
-
 }
-
-/*    
-public static void main(String[] args) {
-    
-    MyDiscoveryListener listener =  new MyDiscoveryListener();
-    
-    try{
-        LocalDevice localDevice = LocalDevice.getLocalDevice();
-        DiscoveryAgent agent = localDevice.getDiscoveryAgent();
-        agent.startInquiry(DiscoveryAgent.GIAC, listener);
-        
-        try {
-            synchronized(lock){
-                lock.wait();
-            }
-        }
-        catch (InterruptedException e) {
-            e.printStackTrace();
-            return;
-        }
-        
-        
-        System.out.println("Device Inquiry Completed. ");
-        
-   
-        UUID[] uuidSet = new UUID[1];
-        uuidSet[0]=new UUID(0x1105); //OBEX Object Push service
-        
-        int[] attrIDs =  new int[] {
-                0x0100 // Service name
-        };
-        
-        for (RemoteDevice device : listener.devices) {
-            agent.searchServices(
-                    attrIDs,uuidSet,device,listener);
-            
-            
-            try {
-                synchronized(lock){
-                    lock.wait();
-                }
-            }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-                return;
-            }
-            
-            
-            System.out.println("Service search finished.");
-        }
-        
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
-}
-*/
